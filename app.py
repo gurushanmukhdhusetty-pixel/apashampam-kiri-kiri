@@ -130,7 +130,9 @@ def inventory():
 def pos():
     st.title("🛒 Terminal & Checkout")
     df_inv = st.session_state.inventory
-    if df_inv.empty: st.warning("Inventory empty. Add products first."); return
+    if df_inv.empty: 
+        st.warning("Inventory empty. Add products first.")
+        return
 
     col_pos, col_cart = st.columns([2, 1.2])
 
@@ -161,13 +163,17 @@ def pos():
     with col_cart:
         with st.container(border=True):
             st.subheader("🧾 Cart")
-            if not st.session_state.cart: st.info("Empty")
+            if not st.session_state.cart: 
+                st.info("Empty")
             else:
                 subtotal = sum(i["subtotal"] for i in st.session_state.cart)
                 for idx, item in enumerate(st.session_state.cart):
                     c1, c2, c3 = st.columns([3, 1.5, 1])
-                    c1.write(f"{item['quantity']}x {item['name']}"); c2.write(f"₹{item['subtotal']:,.2f}")
-                    if c3.button("✖", key=f"rm_{idx}"): st.session_state.cart.pop(idx); st.rerun()
+                    c1.write(f"{item['quantity']}x {item['name']}")
+                    c2.write(f"₹{item['subtotal']:,.2f}")
+                    if c3.button("✖", key=f"rm_{idx}"): 
+                        st.session_state.cart.pop(idx)
+                        st.rerun()
                 
                 st.divider()
                 discount_pct = st.slider("Discount (%)", 0, 100, 0)
@@ -209,15 +215,19 @@ def staff():
         if st.form_submit_button("Add Staff", type="primary") and name:
             st.session_state.staff_list.append({"id": str(uuid.uuid4())[:8], "name": name, "role": role})
             st.rerun()
-    if st.session_state.staff_list: st.dataframe(pd.DataFrame(st.session_state.staff_list), use_container_width=True, hide_index=True)
+    if st.session_state.staff_list: 
+        st.dataframe(pd.DataFrame(st.session_state.staff_list), use_container_width=True, hide_index=True)
 
 def analytics():
     st.title("📈 Analytics")
-    if not st.session_state.sales: st.info("No sales yet."); return
+    if not st.session_state.sales: 
+        st.info("No sales yet.")
+        return
     df_sales = pd.DataFrame(st.session_state.sales)
     df_sales['date'] = pd.to_datetime(df_sales['date']).dt.date
     st.bar_chart(df_sales.groupby('date')['total'].sum(), color="#4F46E5")
     st.download_button("📥 Export CSV", data=df_sales.to_csv(index=False).encode('utf-8'), file_name='sales.csv', type="primary")
+
 # -----------------------------
 # 4. APP ROUTING & LOGIN
 # -----------------------------
@@ -233,10 +243,12 @@ if not st.session_state.logged_in:
                     st.session_state.logged_in = True
                     st.session_state.current_user = {"username": user, "role": st.session_state.users[user]["role"]}
                     st.rerun()
-                else: st.error("Invalid credentials.")
+                else: 
+                    st.error("Invalid credentials.")
 else:
     role = st.session_state.current_user["role"]
     menu = {"🛒 Point of Sale": pos, "📦 Inventory": inventory}
+    
     if role in ["Manager", "Owner"]:
         menu = {"📊 Dashboard": dashboard} | menu | {"👥 Staff": staff}
     if role == "Owner":
@@ -252,31 +264,4 @@ else:
             st.session_state.logged_in = False
             st.rerun()
 
-    # Execute selected page function
-    menu[choice]()function
     menu[choice]()
-    # Staff gets basic access
-    pages = [pos_page, inventory_page]
-    
-    # Managers get staff + dashboard
-    if role in ["Manager", "Owner"]:
-        pages.insert(0, dashboard_page)
-        pages.append(staff_page)
-        
-    # Owners get everything
-    if role == "Owner":
-        pages.append(analytics_page)
-
-    # Sidebar Profile & Logout
-    with st.sidebar:
-        st.subheader(f"👤 {st.session_state.current_user['username'].title()}")
-        st.caption(f"Role: **{role}**")
-        st.divider()
-        if st.button("🚪 Logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.current_user = None
-            st.rerun()
-
-    # Run the dynamic navigation
-    pg = st.navigation(pages)
-    pg.run()
