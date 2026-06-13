@@ -253,6 +253,7 @@ else:
             st.rerun()
 
     # Execute selected page function
+    menu[choice]()function
     menu[choice]()
     # Staff gets basic access
     pages = [pos_page, inventory_page]
