@@ -3,7 +3,13 @@ import pandas as pd
 import uuid
 import base64
 from datetime import datetime
-from fpdf import FPDF
+
+# --- SAFETY CHECK FOR PDF LIBRARY ---
+try:
+    from fpdf import FPDF
+    PDF_READY = True
+except ImportError:
+    PDF_READY = False
 
 st.set_page_config(page_title="MSME POS", page_icon="💳", layout="wide", initial_sidebar_state="expanded")
 
@@ -17,7 +23,7 @@ T = {
         "login_btn": "Login", "user": "Username", "pass": "Password",
         "tot_prod": "Total Products", "stock": "Units in Stock", "rev": "Gross Revenue",
         "add_prod": "➕ Register New Product", "p_name": "Product Name", "sku": "SKU / Barcode",
-        "price": "Price (₹)", "qty": "Quantity", "upload": "Upload Photo (Optional)", "save": "Save to Database",
+        "price": "Price (₹)", "qty": "Quantity", "upload": "📷 Upload Product Photo", "save": "Save to Database",
         "db": "📋 Live Database (Double-click to edit)", "search": "🔍 Search Products...",
         "add": "Add", "cart": "🧾 Current Cart", "empty": "Cart is Empty",
         "sub": "Subtotal", "disc": "Discount", "tax": "Tax", "tot": "Total",
@@ -30,7 +36,7 @@ T = {
         "login_btn": "लॉग इन करें", "user": "उपयोगकर्ता नाम", "pass": "पासवर्ड",
         "tot_prod": "कुल उत्पाद", "stock": "स्टॉक में इकाइयाँ", "rev": "कुल आय",
         "add_prod": "➕ नया उत्पाद जोड़ें", "p_name": "उत्पाद का नाम", "sku": "बारकोड",
-        "price": "कीमत (₹)", "qty": "मात्रा", "upload": "फोटो अपलोड करें", "save": "सेव करें",
+        "price": "कीमत (₹)", "qty": "मात्रा", "upload": "📷 फोटो अपलोड करें", "save": "सेव करें",
         "db": "📋 डेटाबेस (संपादित करने के लिए डबल-क्लिक करें)", "search": "🔍 उत्पाद खोजें...",
         "add": "जोड़ें", "cart": "🧾 कार्ट", "empty": "कार्ट खाली है",
         "sub": "उप-योग", "disc": "छूट", "tax": "कर", "tot": "कुल",
@@ -43,7 +49,7 @@ T = {
         "login_btn": "లాగిన్", "user": "వినియోగదారు పేరు", "pass": "పాస్వర్డ్",
         "tot_prod": "మొత్తం ఉత్పత్తులు", "stock": "స్టాక్", "rev": "మొత్తం ఆదాయం",
         "add_prod": "➕ కొత్త ఉత్పత్తిని జోడించండి", "p_name": "ఉత్పత్తి పేరు", "sku": "బార్‌కోడ్",
-        "price": "ధర (₹)", "qty": "పరిమాణం", "upload": "ఫోటో అప్‌లోడ్", "save": "సేవ్ చేయండి",
+        "price": "ధర (₹)", "qty": "పరిమాణం", "upload": "📷 ఫోటో అప్‌లోడ్", "save": "సేవ్ చేయండి",
         "db": "📋 డేటాబేస్ (సవరించడానికి డబుల్ క్లిక్ చేయండి)", "search": "🔍 ఉత్పత్తులను శోధించండి...",
         "add": "జోడించు", "cart": "🧾 బండి", "empty": "బండి ఖాళీగా ఉంది",
         "sub": "ఉపమొత్తం", "disc": "డిస్కౌంట్", "tax": "పన్ను", "tot": "మొత్తం",
@@ -72,12 +78,13 @@ def get_base64_image(uploaded_file):
     return None
 
 init_db()
-lang = T[st.session_state.lang] # Active dictionary
+lang = T[st.session_state.lang]
 
 # -----------------------------
 # 3. STRICT PDF GENERATOR
 # -----------------------------
 def generate_pdf(sale_id, date_str, customer, cart, subtotal, discount, tax, total):
+    if not PDF_READY: return None
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
@@ -94,7 +101,6 @@ def generate_pdf(sale_id, date_str, customer, cart, subtotal, discount, tax, tot
     pdf.cell(190, 5, "----------------------------------------------------------------", ln=True)
     
     for item in cart:
-        # English translation of name to prevent PDF Unicode crash
         clean_name = item['name'].encode('ascii', 'ignore').decode('ascii')[:25]
         if not clean_name: clean_name = "Retail Item"
         pdf.cell(90, 5, clean_name, 0, 0)
@@ -109,7 +115,9 @@ def generate_pdf(sale_id, date_str, customer, cart, subtotal, discount, tax, tot
     
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(120, 8, "", 0, 0); pdf.cell(35, 8, "TOTAL:", 0, 0); pdf.cell(35, 8, f"Rs. {total:,.2f}", 0, 1, 'R')
-    return bytes(pdf.output(dest='S').encode('latin-1'))
+    
+    # Safe byte conversion
+    return bytes(pdf.output(dest='S'), 'latin-1')
 
 # -----------------------------
 # 4. PAGE LOGIC
@@ -140,6 +148,7 @@ def inventory():
                 img_b64 = get_base64_image(img_file)
                 new_row = {"id": str(uuid.uuid4())[:8], "sku": sku, "name": name, "price": price, "quantity": qty, "image": img_b64}
                 st.session_state.inventory = pd.concat([st.session_state.inventory, pd.DataFrame([new_row])], ignore_index=True)
+                st.success("✅ Added!")
                 st.rerun()
 
     st.subheader(lang["db"])
@@ -170,7 +179,8 @@ def pos():
                     if pd.notna(row.get('image')) and row['image']: 
                         st.image(row['image'], use_container_width=True)
                     st.markdown(f"**{row['name']}**")
-                    st.caption(f"{lang['stock']}: {row['quantity']}")
+                    color = "red" if row['quantity'] <= st.session_state.low_stock_threshold else "gray"
+                    st.markdown(f"<span style='color:{color}'>{lang['stock']}: {row['quantity']}</span>", unsafe_allow_html=True)
                     st.markdown(f"#### ₹{row['price']:,.2f}")
                     
                     qty = st.number_input("Q", 1, max(int(row['quantity']), 1), key=f"q_{row['id']}", label_visibility="collapsed")
@@ -215,10 +225,14 @@ def pos():
                         st.session_state.inventory.at[idx, 'quantity'] -= c_item['quantity']
 
                     st.session_state.sales.append({"id": s_id, "customer": cust, "total": total, "date": d_str})
-                    pdf_file = generate_pdf(s_id, d_str, cust, st.session_state.cart, subtotal, disc_amt, tax_amt, total)
+                    
+                    if PDF_READY:
+                        pdf_file = generate_pdf(s_id, d_str, cust, st.session_state.cart, subtotal, disc_amt, tax_amt, total)
+                        st.session_state['pdf'] = pdf_file
+                        st.session_state['pdf_name'] = f"bill_{s_id}.pdf"
+                    else:
+                        st.error("⚠️ Error: 'fpdf' library missing. Check requirements.txt")
 
-                    st.session_state['pdf'] = pdf_file
-                    st.session_state['pdf_name'] = f"bill_{s_id}.pdf"
                     st.session_state.cart.clear()
                     st.rerun()
 
