@@ -1,92 +1,91 @@
 import streamlit as st
 import pandas as pd
 import uuid
+import base64
 from datetime import datetime
 from fpdf import FPDF
 
-st.set_page_config(page_title="Enterprise POS", page_icon="💳", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="MSME POS", page_icon="💳", layout="wide", initial_sidebar_state="expanded")
 
 # -----------------------------
-# 1. TRANSLATION ENGINE
+# 1. TRANSLATION DICTIONARY
 # -----------------------------
-TRANSLATIONS = {
+T = {
     "English": {
-        "dashboard": "📊 Dashboard", "inventory": "📦 Inventory", "pos": "🛒 Point of Sale", 
+        "dash": "📊 Dashboard", "inv": "📦 Inventory", "pos": "🛒 Point of Sale", 
         "staff": "👥 Staff", "analytics": "📈 Analytics", "logout": "🚪 Logout",
-        "search": "🔍 Search Products...", "cart": "🧾 Cart", "empty_cart": "Cart is Empty",
-        "subtotal": "Subtotal", "discount": "Discount", "tax": "Tax", "total": "Total",
-        "checkout": "💳 Checkout & Generate PDF", "customer": "Customer Name", "add": "Add", "stock": "Stock"
+        "login_btn": "Login", "user": "Username", "pass": "Password",
+        "tot_prod": "Total Products", "stock": "Units in Stock", "rev": "Gross Revenue",
+        "add_prod": "➕ Register New Product", "p_name": "Product Name", "sku": "SKU / Barcode",
+        "price": "Price (₹)", "qty": "Quantity", "upload": "Upload Photo (Optional)", "save": "Save to Database",
+        "db": "📋 Live Database (Double-click to edit)", "search": "🔍 Search Products...",
+        "add": "Add", "cart": "🧾 Current Cart", "empty": "Cart is Empty",
+        "sub": "Subtotal", "disc": "Discount", "tax": "Tax", "tot": "Total",
+        "cust": "Customer Name", "checkout": "💳 Checkout & Generate PDF", "dl_pdf": "📄 Download PDF Bill",
+        "staff_name": "Full Name", "role": "Role", "add_staff": "Add Staff Member", "dl_csv": "📥 Export CSV"
     },
     "Hindi": {
-        "dashboard": "📊 डैशबोर्ड", "inventory": "📦 इन्वेंटरी", "pos": "🛒 बिक्री केंद्र (POS)", 
+        "dash": "📊 डैशबोर्ड", "inv": "📦 इन्वेंटरी", "pos": "🛒 बिक्री केंद्र (POS)", 
         "staff": "👥 स्टाफ", "analytics": "📈 एनालिटिक्स", "logout": "🚪 लॉग आउट",
-        "search": "🔍 उत्पाद खोजें...", "cart": "🧾 कार्ट", "empty_cart": "कार्ट खाली है",
-        "subtotal": "उप-योग", "discount": "छूट", "tax": "कर", "total": "कुल",
-        "checkout": "💳 चेकआउट और बिल (PDF)", "customer": "ग्राहक का नाम", "add": "जोड़ें", "stock": "स्टॉक"
+        "login_btn": "लॉग इन करें", "user": "उपयोगकर्ता नाम", "pass": "पासवर्ड",
+        "tot_prod": "कुल उत्पाद", "stock": "स्टॉक में इकाइयाँ", "rev": "कुल आय",
+        "add_prod": "➕ नया उत्पाद जोड़ें", "p_name": "उत्पाद का नाम", "sku": "बारकोड",
+        "price": "कीमत (₹)", "qty": "मात्रा", "upload": "फोटो अपलोड करें", "save": "सेव करें",
+        "db": "📋 डेटाबेस (संपादित करने के लिए डबल-क्लिक करें)", "search": "🔍 उत्पाद खोजें...",
+        "add": "जोड़ें", "cart": "🧾 कार्ट", "empty": "कार्ट खाली है",
+        "sub": "उप-योग", "disc": "छूट", "tax": "कर", "tot": "कुल",
+        "cust": "ग्राहक का नाम", "checkout": "💳 चेकआउट और बिल (PDF)", "dl_pdf": "📄 PDF बिल डाउनलोड करें",
+        "staff_name": "पूरा नाम", "role": "भूमिका", "add_staff": "स्टाफ जोड़ें", "dl_csv": "📥 CSV डाउनलोड करें"
     },
     "Telugu": {
-        "dashboard": "📊 డాష్‌బోర్డ్", "inventory": "📦 ఇన్వెంటరీ", "pos": "🛒 విక్రయ కేంద్రం (POS)", 
+        "dash": "📊 డాష్‌బోర్డ్", "inv": "📦 ఇన్వెంటరీ", "pos": "🛒 విక్రయ కేంద్రం (POS)", 
         "staff": "👥 సిబ్బంది", "analytics": "📈 విశ్లేషణలు", "logout": "🚪 లాగ్ అవుట్",
-        "search": "🔍 ఉత్పత్తులను శోధించండి...", "cart": "🧾 బండి", "empty_cart": "బండి ఖాళీగా ఉంది",
-        "subtotal": "ఉపమొత్తం", "discount": "డిస్కౌంట్", "tax": "పన్ను", "total": "మొత్తం",
-        "checkout": "💳 చెక్అవుట్ & బిల్లు (PDF)", "customer": "కస్టమర్ పేరు", "add": "జోడించు", "stock": "స్టాక్"
-    },
-    "Kannada": {
-        "dashboard": "📊 ಡ್ಯಾಶ್‌ಬೋರ್ಡ್", "inventory": "📦 ದಾಸ್ತಾನು", "pos": "🛒 ಮಾರಾಟ ಕೇಂದ್ರ (POS)", 
-        "staff": "👥 ಸಿಬ್ಬಂದಿ", "analytics": "📈 ವಿಶ್ಲೇಷಣೆ", "logout": "🚪 ಲಾಗ್‌ಔಟ್",
-        "search": "🔍 ಉತ್ಪನ್ನಗಳನ್ನು ಹುಡುಕಿ...", "cart": "🧾 ಕಾರ್ಟ್", "empty_cart": "ಕಾರ್ಟ್ ಖಾಲಿಯಾಗಿದೆ",
-        "subtotal": "ಉಪಮೊತ್ತ", "discount": "ರಿಯಾಯಿತಿ", "tax": "ತೆರಿಗೆ", "total": "ಒಟ್ಟು",
-        "checkout": "💳 ಚೆಕ್ಔಟ್ ಮತ್ತು ಬಿಲ್ (PDF)", "customer": "ಗ್ರಾಹಕರ ಹೆಸರು", "add": "ಸೇರಿಸಿ", "stock": "ಸ್ಟಾಕ್"
+        "login_btn": "లాగిన్", "user": "వినియోగదారు పేరు", "pass": "పాస్వర్డ్",
+        "tot_prod": "మొత్తం ఉత్పత్తులు", "stock": "స్టాక్", "rev": "మొత్తం ఆదాయం",
+        "add_prod": "➕ కొత్త ఉత్పత్తిని జోడించండి", "p_name": "ఉత్పత్తి పేరు", "sku": "బార్‌కోడ్",
+        "price": "ధర (₹)", "qty": "పరిమాణం", "upload": "ఫోటో అప్‌లోడ్", "save": "సేవ్ చేయండి",
+        "db": "📋 డేటాబేస్ (సవరించడానికి డబుల్ క్లిక్ చేయండి)", "search": "🔍 ఉత్పత్తులను శోధించండి...",
+        "add": "జోడించు", "cart": "🧾 బండి", "empty": "బండి ఖాళీగా ఉంది",
+        "sub": "ఉపమొత్తం", "disc": "డిస్కౌంట్", "tax": "పన్ను", "tot": "మొత్తం",
+        "cust": "కస్టమర్ పేరు", "checkout": "💳 చెక్అవుట్ & బిల్లు (PDF)", "dl_pdf": "📄 PDF బిల్లు డౌన్‌లోడ్",
+        "staff_name": "పూర్తి పేరు", "role": "పాత్ర", "add_staff": "సిబ్బందిని జోడించండి", "dl_csv": "📥 CSV డౌన్‌లోడ్ చేయండి"
     }
 }
 
 # -----------------------------
-# 2. STYLING & DATABASE INIT
+# 2. SYSTEM INIT & HELPERS
 # -----------------------------
-def apply_theme():
-    st.markdown("""
-    <style>
-    .stApp { background-color: #F8FAFC; }
-    [data-testid="metric-container"] {
-        background: #ffffff; border: 1px solid #e2e8f0; padding: 20px;
-        border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #4F46E5;
-    }
-    div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        background: white; border-radius: 10px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
 def init_db():
     defaults = {
-        "users": {
-            "shanmukh": {"password": "owner123", "role": "Owner"},
-            "manager": {"password": "manager123", "role": "Manager"},
-            "staff": {"password": "staff123", "role": "Staff"}
-        },
-        "logged_in": False, "current_user": None, "lang": "English",
-        "low_stock_threshold": 5,
+        "users": {"shanmukh": {"pass": "owner123", "role": "Owner"}, "staff": {"pass": "staff123", "role": "Staff"}},
+        "logged_in": False, "current_user": None, "lang": "English", "low_stock_threshold": 5,
         "inventory": pd.DataFrame(columns=["id", "sku", "name", "price", "quantity", "image"]),
         "cart": [], "sales": [], "staff_list": []
     }
     for k, v in defaults.items():
         if k not in st.session_state: st.session_state[k] = v
 
-apply_theme()
+def get_base64_image(uploaded_file):
+    if uploaded_file is not None:
+        base64_str = base64.b64encode(uploaded_file.read()).decode()
+        return f"data:{uploaded_file.type};base64,{base64_str}"
+    return None
+
 init_db()
-t = TRANSLATIONS[st.session_state.lang] # Active Dictionary Shortcut
+lang = T[st.session_state.lang] # Active dictionary
 
 # -----------------------------
-# 3. PDF GENERATOR HELPER
+# 3. STRICT PDF GENERATOR
 # -----------------------------
-def generate_pdf_receipt(sale_id, date_str, customer, cart, subtotal, discount, tax, total):
+def generate_pdf(sale_id, date_str, customer, cart, subtotal, discount, tax, total):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(190, 10, "SHANMUKH ENTERPRISES", ln=True, align='C')
     pdf.set_font("Arial", '', 10)
     pdf.cell(190, 5, "========================================", ln=True, align='C')
-    pdf.cell(190, 5, f"Bill ID: {sale_id}  |  Date: {date_str}  |  Customer: {customer}", ln=True)
+    pdf.cell(190, 5, f"Bill ID: {sale_id}  |  Date: {date_str}", ln=True)
+    pdf.cell(190, 5, f"Customer: {customer}", ln=True)
     pdf.cell(190, 5, "----------------------------------------------------------------", ln=True)
     
     pdf.set_font("Arial", 'B', 10)
@@ -95,7 +94,10 @@ def generate_pdf_receipt(sale_id, date_str, customer, cart, subtotal, discount, 
     pdf.cell(190, 5, "----------------------------------------------------------------", ln=True)
     
     for item in cart:
-        pdf.cell(90, 5, item['name'][:25], 0, 0)
+        # English translation of name to prevent PDF Unicode crash
+        clean_name = item['name'].encode('ascii', 'ignore').decode('ascii')[:25]
+        if not clean_name: clean_name = "Retail Item"
+        pdf.cell(90, 5, clean_name, 0, 0)
         pdf.cell(30, 5, str(item['quantity']), 0, 0, 'C')
         pdf.cell(70, 5, f"Rs. {item['subtotal']:,.2f}", 0, 1, 'R')
         
@@ -107,78 +109,72 @@ def generate_pdf_receipt(sale_id, date_str, customer, cart, subtotal, discount, 
     
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(120, 8, "", 0, 0); pdf.cell(35, 8, "TOTAL:", 0, 0); pdf.cell(35, 8, f"Rs. {total:,.2f}", 0, 1, 'R')
-    return pdf.output(dest='S').encode('latin-1')
+    return bytes(pdf.output(dest='S').encode('latin-1'))
 
 # -----------------------------
-# 4. PAGE MODULES
+# 4. PAGE LOGIC
 # -----------------------------
 def dashboard():
-    st.title(t["dashboard"])
+    st.title(lang["dash"])
     df_inv = st.session_state.inventory
-    total_items = df_inv["quantity"].sum() if not df_inv.empty else 0
-    total_rev = sum(s["total"] for s in st.session_state.sales)
+    tot_qty = df_inv["quantity"].sum() if not df_inv.empty else 0
+    tot_rev = sum(s["total"] for s in st.session_state.sales)
     
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Products", len(df_inv))
-    c2.metric("Units in Stock", total_items)
-    c3.metric("Gross Revenue", f"₹{total_rev:,.2f}")
-    
-    st.divider()
-    st.subheader("⚡ Low Stock Alerts")
-    if not df_inv.empty:
-        low_stock = df_inv[df_inv["quantity"] <= st.session_state.low_stock_threshold]
-        if not low_stock.empty:
-            st.warning(f"{len(low_stock)} items are running critically low!")
-            st.dataframe(low_stock[["name", "sku", "quantity"]], use_container_width=True, hide_index=True)
+    c1.metric(lang["tot_prod"], len(df_inv))
+    c2.metric(lang["stock"], tot_qty)
+    c3.metric(lang["rev"], f"₹{tot_rev:,.2f}")
 
 def inventory():
-    st.title(t["inventory"])
-    with st.expander("➕ Register New Product"):
-        with st.form("new_product", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            name = col1.text_input("Product Name*")
-            sku = col2.text_input("SKU / Barcode*")
-            price = col1.number_input("Price (₹)", min_value=0.0)
-            qty = col2.number_input("Initial Quantity", min_value=0)
-            uploaded_image = st.file_uploader("Upload Product Photo (Optional)", type=["png", "jpg", "jpeg"])
+    st.title(lang["inv"])
+    with st.expander(lang["add_prod"]):
+        with st.form("new_prod", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            name = c1.text_input(lang["p_name"])
+            sku = c2.text_input(lang["sku"])
+            price = c1.number_input(lang["price"], min_value=0.0)
+            qty = c2.number_input(lang["qty"], min_value=0)
+            img_file = st.file_uploader(lang["upload"], type=["png", "jpg", "jpeg"])
             
-            if st.form_submit_button("Save to Database", type="primary"):
-                if name and sku:
-                    img_bytes = uploaded_image.read() if uploaded_image else None
-                    new_row = {"id": str(uuid.uuid4())[:8], "sku": sku, "name": name, "price": price, "quantity": qty, "image": img_bytes}
-                    st.session_state.inventory = pd.concat([st.session_state.inventory, pd.DataFrame([new_row])], ignore_index=True)
-                    st.rerun()
+            if st.form_submit_button(lang["save"], type="primary") and name:
+                img_b64 = get_base64_image(img_file)
+                new_row = {"id": str(uuid.uuid4())[:8], "sku": sku, "name": name, "price": price, "quantity": qty, "image": img_b64}
+                st.session_state.inventory = pd.concat([st.session_state.inventory, pd.DataFrame([new_row])], ignore_index=True)
+                st.rerun()
 
-    st.subheader("📋 Database (Double-Click to Edit)")
+    st.subheader(lang["db"])
     if not st.session_state.inventory.empty:
         st.session_state.inventory = st.data_editor(
             st.session_state.inventory, use_container_width=True, hide_index=True, num_rows="dynamic",
-            column_config={"id": st.column_config.TextColumn("System ID", disabled=True), "image": None}
+            column_config={
+                "id": None, 
+                "image": st.column_config.ImageColumn("Preview")
+            }
         )
 
 def pos():
-    st.title(t["pos"])
+    st.title(lang["pos"])
     df_inv = st.session_state.inventory
-    if df_inv.empty: st.warning("Inventory empty. Add products first."); return
+    if df_inv.empty: st.warning("Inventory empty."); return
 
-    col_pos, col_cart = st.columns([2, 1.2])
+    col1, col2 = st.columns([2.2, 1])
 
-    with col_pos:
-        search = st.text_input(t["search"])
+    with col1:
+        search = st.text_input(lang["search"])
         display_df = df_inv if not search else df_inv[df_inv['name'].str.contains(search, case=False) | df_inv['sku'].str.contains(search, case=False)]
 
         cols = st.columns(3)
         for idx, row in display_df.iterrows():
             with cols[idx % 3]:
                 with st.container(border=True):
-                    if row.get('image') is not None: st.image(row['image'], use_container_width=True)
+                    if pd.notna(row.get('image')) and row['image']: 
+                        st.image(row['image'], use_container_width=True)
                     st.markdown(f"**{row['name']}**")
-                    color = "red" if row['quantity'] <= st.session_state.low_stock_threshold else "gray"
-                    st.markdown(f"<span style='color:{color}'>{t['stock']}: {row['quantity']}</span>", unsafe_allow_html=True)
+                    st.caption(f"{lang['stock']}: {row['quantity']}")
                     st.markdown(f"#### ₹{row['price']:,.2f}")
                     
-                    qty = st.number_input("Qty", 1, max(int(row['quantity']), 1), key=f"q_{row['id']}", label_visibility="collapsed")
-                    if st.button(t["add"], key=f"btn_{row['id']}", type="primary", use_container_width=True):
+                    qty = st.number_input("Q", 1, max(int(row['quantity']), 1), key=f"q_{row['id']}", label_visibility="collapsed")
+                    if st.button(lang["add"], key=f"b_{row['id']}", type="primary", use_container_width=True):
                         if row['quantity'] >= qty:
                             item = next((i for i in st.session_state.cart if i["id"] == row["id"]), None)
                             if item:
@@ -188,109 +184,106 @@ def pos():
                                 st.session_state.cart.append({"id": row["id"], "name": row["name"], "price": row["price"], "quantity": qty, "subtotal": row["price"] * qty})
                             st.rerun()
 
-    with col_cart:
+    with col2:
         with st.container(border=True):
-            st.subheader(t["cart"])
-            if not st.session_state.cart: st.info(t["empty_cart"])
+            st.subheader(lang["cart"])
+            if not st.session_state.cart: st.info(lang["empty"])
             else:
                 subtotal = sum(i["subtotal"] for i in st.session_state.cart)
                 for idx, item in enumerate(st.session_state.cart):
-                    c1, c2, c3 = st.columns([3, 1.5, 1])
-                    c1.write(f"{item['quantity']}x {item['name']}")
-                    c2.write(f"₹{item['subtotal']:,.2f}")
-                    if c3.button("✖", key=f"rm_{idx}"): st.session_state.cart.pop(idx); st.rerun()
+                    c_a, c_b, c_c = st.columns([3, 1.5, 1])
+                    c_a.write(f"{item['quantity']}x {item['name']}")
+                    c_b.write(f"₹{item['subtotal']:,.2f}")
+                    if c_c.button("✖", key=f"rm_{idx}"): st.session_state.cart.pop(idx); st.rerun()
                 
                 st.divider()
-                discount_pct = st.slider(f"{t['discount']} (%)", 0, 100, 0)
-                discount_amt = subtotal * (discount_pct / 100)
-                tax_amt = (subtotal - discount_amt) * 0.05
-                grand_total = (subtotal - discount_amt) + tax_amt
+                disc_pct = st.slider(f"{lang['disc']} (%)", 0, 100, 0)
+                disc_amt = subtotal * (disc_pct / 100)
+                tax_amt = (subtotal - disc_amt) * 0.05
+                total = (subtotal - disc_amt) + tax_amt
                 
-                st.caption(f"{t['subtotal']}: ₹{subtotal:,.2f} | {t['tax']}: +₹{tax_amt:,.2f} | {t['discount']}: -₹{discount_amt:,.2f}")
-                st.markdown(f"### {t['total']}: ₹{grand_total:,.2f}")
+                st.caption(f"{lang['sub']}: ₹{subtotal:,.2f} | {lang['tax']}: +₹{tax_amt:,.2f} | {lang['disc']}: -₹{disc_amt:,.2f}")
+                st.markdown(f"### {lang['tot']}: ₹{total:,.2f}")
                 
-                customer = st.text_input(t["customer"], "Walk-in")
-                if st.button(t["checkout"], type="primary", use_container_width=True):
-                    sale_id = str(uuid.uuid4())[:8].upper()
-                    date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                cust = st.text_input(lang["cust"], "Walk-in")
+                if st.button(lang["checkout"], type="primary", use_container_width=True):
+                    s_id = str(uuid.uuid4())[:8].upper()
+                    d_str = datetime.now().strftime("%Y-%m-%d %H:%M")
                     
                     for c_item in st.session_state.cart:
                         idx = df_inv.index[df_inv['id'] == c_item['id']].tolist()[0]
                         st.session_state.inventory.at[idx, 'quantity'] -= c_item['quantity']
 
-                    st.session_state.sales.append({"id": sale_id, "customer": customer, "total": grand_total, "date": date_str})
-                    pdf_bytes = generate_pdf_receipt(sale_id, date_str, customer, st.session_state.cart, subtotal, discount_amt, tax_amt, grand_total)
+                    st.session_state.sales.append({"id": s_id, "customer": cust, "total": total, "date": d_str})
+                    pdf_file = generate_pdf(s_id, d_str, cust, st.session_state.cart, subtotal, disc_amt, tax_amt, total)
 
-                    st.session_state['last_pdf'] = pdf_bytes
-                    st.session_state['last_sale_id'] = sale_id
+                    st.session_state['pdf'] = pdf_file
+                    st.session_state['pdf_name'] = f"bill_{s_id}.pdf"
                     st.session_state.cart.clear()
                     st.rerun()
 
-        if 'last_pdf' in st.session_state:
-            st.download_button("📄 Download PDF", data=st.session_state['last_pdf'], file_name=f"bill_{st.session_state['last_sale_id']}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+        if 'pdf' in st.session_state:
+            st.download_button(lang["dl_pdf"], data=st.session_state['pdf'], file_name=st.session_state['pdf_name'], mime="application/pdf", type="primary", use_container_width=True)
 
 def staff():
-    st.title(t["staff"])
+    st.title(lang["staff"])
     with st.form("new_staff", clear_on_submit=True):
         c1, c2 = st.columns(2)
-        name = c1.text_input("Full Name")
-        role = c2.selectbox("Role", ["Cashier", "Storekeeper", "Manager"])
-        if st.form_submit_button("Add Staff", type="primary") and name:
+        name = c1.text_input(lang["staff_name"])
+        role = c2.selectbox(lang["role"], ["Cashier", "Manager"])
+        if st.form_submit_button(lang["add_staff"], type="primary") and name:
             st.session_state.staff_list.append({"id": str(uuid.uuid4())[:8], "name": name, "role": role})
             st.rerun()
     if st.session_state.staff_list: 
         st.dataframe(pd.DataFrame(st.session_state.staff_list), use_container_width=True, hide_index=True)
 
 def analytics():
-    st.title(t["analytics"])
-    if not st.session_state.sales: st.info("No sales yet."); return
-    df_sales = pd.DataFrame(st.session_state.sales)
-    df_sales['date'] = pd.to_datetime(df_sales['date']).dt.date
-    st.bar_chart(df_sales.groupby('date')['total'].sum(), color="#4F46E5")
-    st.download_button("📥 Export CSV", data=df_sales.to_csv(index=False).encode('utf-8'), file_name='sales.csv', type="primary")
+    st.title(lang["analytics"])
+    if not st.session_state.sales: return
+    df_s = pd.DataFrame(st.session_state.sales)
+    df_s['date'] = pd.to_datetime(df_s['date']).dt.date
+    st.bar_chart(df_s.groupby('date')['total'].sum(), color="#4F46E5")
+    st.download_button(lang["dl_csv"], data=df_s.to_csv(index=False).encode('utf-8'), file_name='sales.csv', type="primary")
 
 # -----------------------------
-# 5. APP ROUTING & LOGIN
+# 5. CORE ROUTING
 # -----------------------------
 if not st.session_state.logged_in:
-    st.markdown("<br><br><br><h1 style='text-align: center;'>💳 MSME POS</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1.2, 1])
-    with col2:
+    st.markdown("<br><br><h2 style='text-align: center;'>💳 MSME POS</h2>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c2:
         with st.container(border=True):
-            user = st.text_input("Username").strip().lower()
-            pwd = st.text_input("Password", type="password")
-            if st.button("Login", type="primary", use_container_width=True):
-                if user in st.session_state.users and st.session_state.users[user]["password"] == pwd:
+            usr = st.text_input(lang["user"]).strip().lower()
+            pwd = st.text_input(lang["pass"], type="password")
+            if st.button(lang["login_btn"], type="primary", use_container_width=True):
+                if usr in st.session_state.users and st.session_state.users[usr]["pass"] == pwd:
                     st.session_state.logged_in = True
-                    st.session_state.current_user = {"username": user, "role": st.session_state.users[user]["role"]}
+                    st.session_state.current_user = {"username": usr, "role": st.session_state.users[usr]["role"]}
                     st.rerun()
-                else: 
-                    st.error("Invalid credentials.")
+                else: st.error("Error")
 else:
     with st.sidebar:
-        # Language Selector
-        new_lang = st.selectbox("🌐 Language / भाषा / భాష / ಭಾಷೆ", ["English", "Hindi", "Telugu", "Kannada"], index=["English", "Hindi", "Telugu", "Kannada"].index(st.session_state.lang))
+        new_lang = st.selectbox("🌐 Language / भाषा / భాష", ["English", "Hindi", "Telugu"], index=["English", "Hindi", "Telugu"].index(st.session_state.lang))
         if new_lang != st.session_state.lang:
             st.session_state.lang = new_lang
             st.rerun()
             
-        st.divider()
         role = st.session_state.current_user["role"]
-        st.subheader(f"👤 {st.session_state.current_user['username'].title()}")
-        st.caption(f"Role: **{role}**")
+        st.caption(f"👤 {st.session_state.current_user['username'].title()} ({role})")
         st.divider()
         
-        # Build menu based on language
-        menu = {t["pos"]: pos, t["inventory"]: inventory}
-        if role in ["Manager", "Owner"]:
-            menu = {t["dashboard"]: dashboard} | menu | {t["staff"]: staff}
+        # Build strict single-menu routing
+        menu_options = {lang["pos"]: pos, lang["inv"]: inventory}
+        if role == "Owner" or role == "Manager":
+            menu_options = {lang["dash"]: dashboard} | menu_options | {lang["staff"]: staff}
         if role == "Owner":
-            menu[t["analytics"]] = analytics
+            menu_options[lang["analytics"]] = analytics
 
-        choice = st.radio("Navigation", list(menu.keys()), label_visibility="collapsed")
+        choice = st.radio("Nav", list(menu_options.keys()), label_visibility="collapsed")
         st.divider()
-        if st.button(t["logout"], use_container_width=True):
+        if st.button(lang["logout"], use_container_width=True):
             st.session_state.logged_in = False
             st.rerun()
 
-    menu[choice]()
+    # Execute the selected page
+    menu_options[choice]()
