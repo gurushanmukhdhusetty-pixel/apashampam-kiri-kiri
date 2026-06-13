@@ -218,7 +218,6 @@ def analytics():
     df_sales['date'] = pd.to_datetime(df_sales['date']).dt.date
     st.bar_chart(df_sales.groupby('date')['total'].sum(), color="#4F46E5")
     st.download_button("📥 Export CSV", data=df_sales.to_csv(index=False).encode('utf-8'), file_name='sales.csv', type="primary")
-
 # -----------------------------
 # 4. APP ROUTING & LOGIN
 # -----------------------------
@@ -254,8 +253,7 @@ else:
             st.rerun()
 
     # Execute selected page function
-    menu[choice]()    role = st.session_state.current_user["role"]
-    
+    menu[choice]()
     # Staff gets basic access
     pages = [pos_page, inventory_page]
     
