@@ -1,0 +1,12 @@
+pos_app/
+├── app.py
+├── .streamlit/
+│   └── config.toml
+├── utils/
+│   └── init_db.py
+└── pages/
+    ├── dashboard.py
+    ├── pos.py
+    ├── inventory.py
+    ├── staff.py
+    └── analytics.py
